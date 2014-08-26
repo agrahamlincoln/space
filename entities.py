@@ -9,10 +9,17 @@
 
 import pygame, random, math
 
+""" Class Entity
+    Generic class for loading sprites
+"""
 class Entity(pygame.sprite.Sprite):
 
     def __init__(self, screen, scoreboard_height):
         pygame.sprite.Sprite.__init__(self)
+
+        #initialize everything
+        self.screen = screen
+        self.status = True
         self.heightSB = scoreboard_height
         self.image = pygame.Surface((50,50))
         self.rect = self.image.get_rect()
@@ -38,13 +45,21 @@ class Entity(pygame.sprite.Sprite):
         #base img has angle of 90 degrees
         return pygame.transform.rotate(baseImg, angle-90)
 
-#####
-#  NEUTRAL
-#####
+    def toggle(self):
+        self.status = not self.status
+
+    def getStatus(self):
+        return self.status
+
+    def setRandPos(self):
+        self.rect.centerx = random.randrange(0, self.screen.get_width())
+        self.rect.centery = random.randrange(self.heightSB, self.screen.get_height())
+
+""" Class Neutral
+    Class for neutral entities. Is placed randomly on the screen
+    Neutral objects will play sound when the play_sound() method is invoked
+"""
 class Neutral(Entity):
-    """ makes a neutral entity with a random starting position
-        the neutral entity can play an explosion sound
-    """
         
     #load any external elements from file
     pygame.mixer.init(44100, 16, 1, 1024) #Initialize the mixer
@@ -52,18 +67,17 @@ class Neutral(Entity):
         
     def __init__(self, screen, scoreboard_height, size):
 		
-		#perform super methods
+	#perform super methods
         super(Neutral, self).__init__(screen, scoreboard_height)
-        self.baseImg = super(Neutral, self).loadImg("star.png",size,size)
+        self.baseImg = self.loadImg("star.png",size,size)
 
-        #store for later usage
+        #class variables
         self.size = size
         self.image = self.baseImg
         self.rect = self.image.get_rect()
 
-        #initialize position
-        self.rect.centerx = random.randrange(0, screen.get_width())
-        self.rect.centery = random.randrange(scoreboard_height, screen.get_height())
+        #initialize location
+        self.setRandPos()
 
     def play_sound(self):
         self.explosion.play()
@@ -71,38 +85,49 @@ class Neutral(Entity):
     def getSize(self):
     	return self.size
 
-#####
-#  ENEMY
-#####        
-class Enemy(Entity):
-    """ makes an enemy with a random starting position
-        the enemy can grow
+    """ resize()
+        re-loads the image with the new desired size
     """
+    def resize(self, size):
+        self.size = size
+        self.baseImg = self.loadImg("star.png",size,size)
+        self.image = self.baseImg
+        self.rect = self.image.get_rect()
+
+""" Class Enemy
+    Class for Enemy entities. Is placed randomly on the screen
+    Enemy objects can grow by invoking the grow() method
+"""
+class Enemy(Entity):
         
     def __init__(self, screen, scoreboard_height, size):
     
     	#perform super methods
         super(Enemy, self).__init__(screen, scoreboard_height)
-        self.baseImg = super(Enemy, self).loadImg("enemy.png",size,size)
+        self.baseImg = self.loadImg("enemy.png",size,size)
         
         #store for future usage
         self.size = size
         self.image = self.baseImg
         self.rect = self.image.get_rect()
 
-        #initialize position
-        self.rect.centerx = random.randrange(0, screen.get_width())
-        self.rect.centery = random.randrange(self.heightSB, screen.get_height())
+        #initialize location
+        self.setRandPos()
 
-
+    def resize(self, size):
+        self.size = size
+        self.baseImg = self.loadImg("enemy.png",size,size)
+        self.image = self.baseImg
+        self.rect = self.image.get_rect()
+        
     """ grow(self)
         re-loads the image from file
         sizes up between 0 and 5 pixels on each width and height.
         We re-load the file to avoid image distortion on re-scaling
     """
     def grow(self):
-        newSize = self.rect.width + random.randint(5,10)
-        self.image = super(Enemy, self).loadImg("enemy.png", newSize, newSize)
+        newSize = self.rect.width + random.randint(1,5)
+        self.image = self.loadImg("enemy.png", newSize, newSize)
         #store old position
         xpos = self.rect.centerx
         ypos = self.rect.centery
@@ -114,9 +139,12 @@ class Enemy(Entity):
     def getSize(self):
     	return self.size	
         
-#####
-#  USER
-#####        
+""" Class User
+    Class for User entity. Starts in middle of the screen.
+    User class is able to move around the screen via acceleration and direction
+    Update method will perform movement.
+    Can play sound by invoking the play_sound() method
+"""       
 class User(Entity):
     """ makes a spaceship sprite with vector-based movement
     """
@@ -128,17 +156,20 @@ class User(Entity):
         super(User, self).__init__(screen, scoreboard_height)
 
         #load image
-        self.baseImg = super(User, self).loadImg("spaceship.png",25,47)
-        #we will use this baseImg later
+        self.baseImg = self.loadImg("spaceship.png",25,47)
+        
+        #initialize velocity, direction, and position
+        self.initialize()
+
+    #initialize velocity, direction, and position
+    def initialize(self):
+        self.velocity = 0
+        self.direction = 90
         self.image = self.baseImg
         self.rect = self.image.get_rect()
-
-        #initialize velocity, direction, and position
-        self.rect.centerx = (screen.get_width()/2)
-        self.rect.centery = ((screen.get_height()/2)+self.heightSB)
-        self.velocity = 0
-        self.direction = 90 #angle measure in degrees
-
+        self.rect.centerx = (self.screen.get_width()/2)
+        self.rect.centery = ((self.screen.get_height()/2)+self.heightSB)
+        
     #accelerate increases velocity
     def accelerate(self):
         self.velocity += 0.25

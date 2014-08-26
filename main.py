@@ -8,7 +8,7 @@
 """
 
 #Initialize  
-import pygame, random, entities, math, scoreboard
+import pygame, random, entities, math, overlays
 pygame.init()
 
 def main():
@@ -19,8 +19,8 @@ def main():
     ###=================
     #window options
     game_title = "Space!"
-    window_width = 800
-    window_height = 600
+    window_width = 1280
+    window_height = 720
     scoreboard_height = 50
     bg_color = (0,0,0) #black
     #neutral options
@@ -28,16 +28,21 @@ def main():
     neutral_min_size = 5
     neutral_max_size = 15
     #enemy options
-    enemy_grow_time = 15 #seconds
+    enemy_grow_time = 1 #seconds
     enemy_min_size = 25
     enemy_max_size = 55
 
     #Display
     screen = pygame.display.set_mode((window_width, window_height))
-    score = scoreboard.Scoreboard(screen, scoreboard_height)
-    paused = scoreboard.Overlay("Paused", screen, scoreboard_height)
-    gameOver = scoreboard.Overlay("Game Over", screen, scoreboard_height)
     pygame.display.set_caption(game_title)
+
+    #Interface objects
+    score = overlays.Scoreboard(screen, scoreboard_height)
+    paused = overlays.ToggleOverlay("Paused", screen, scoreboard_height)
+    gameOver = overlays.ToggleOverlay("Game Over", screen, scoreboard_height)
+    newGame = overlays.ToggleOverlay("Welcome to Space!", screen, scoreboard_height)
+    newGame.toggle() #set initial status to true
+    instructions = overlays.Instructions(screen, (int(screen.get_width()*0.75), int(screen.get_height()*0.75)), scoreboard_height)
 
     #Background
     background = pygame.Surface(screen.get_size())
@@ -55,8 +60,8 @@ def main():
         neutral = entities.Neutral(screen, scoreboard_height, random.randint(neutral_min_size,neutral_max_size))
         neutrals.append(neutral)
     for i in range(numEnemies):
-        enemy =  entities.Enemy(screen, scoreboard_height, random.randint(enemy_min_size, enemy_max_size))
-        enemies.append(enemy)   
+        enemy = entities.Enemy(screen, scoreboard_height, random.randint(enemy_min_size, enemy_max_size))
+        enemies.append(enemy)
     
 
     #put entities in groups
@@ -82,9 +87,46 @@ def main():
         #Time
         clock.tick(30)
         
+        #If the game is NEW
+        if newGame.getStatus():
+            #re-draw everything
+            screen.blit(background, (0,0)) #clear the whole screen
+            
+            #first the sprites
+            neutralGroup.draw(screen)
+            userGroup.draw(screen)
+            enemyGroup.draw(screen)
+
+            #then the overlays
+            newGame.draw()
+            instructions.draw()
+            pygame.display.flip()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    keepGoing = False
+                if event.type == pygame.KEYDOWN:
+                    if (event.key == pygame.K_RETURN):
+                        newGame.toggle() #begin game
+                        keys = (False, False, False, False) #reset the movement keys
+                        screen.blit(background, (0,0)) #clear the whole screen
+                        
+            
         #If game is LOST (Lives == 0)
-        if gameOver.getStatus():
-            gameOver.showOverlay()
+        elif gameOver.getStatus():
+            #re-draw everything
+            screen.blit(background, (0,0)) #clear the whole screen
+            
+            #first the sprites
+            neutralGroup.draw(screen)
+            userGroup.draw(screen)
+            enemyGroup.draw(screen)
+
+            #then the overlays
+            gameOver.draw()
+            instructions.draw()
+            score.draw()
+            
             pygame.display.flip()
 
             #Events
@@ -94,11 +136,47 @@ def main():
                 if event.type == pygame.KEYDOWN:
                     if (event.key == pygame.K_RETURN):
                         gameOver.toggle()
+                        newGame.toggle()
                         screen.blit(background, (0,0)) #clear the whole screen
+                        
+                        #reset score
+                        score.reset()
+                        
+                        #reset groups
+                        user.initialize()
+                        enemyGroup.empty()
+                        enemyGroup.add(enemies)
+                        neutralGroup.empty()
+                        neutralGroup.add(neutrals)
+
+                        #reset neutrals
+                        for neutral in neutrals:
+                            if (neutral.getStatus() == False):
+                                neutral.toggle()
+                            neutral.resize( random.randint(neutral_min_size, neutral_max_size) )
+                            neutral.setRandPos()
+
+                        #reset enemies
+                        for enemy in enemies:
+                            if (enemy.getStatus() == False):
+                                enemy.toggle()
+                            enemy.resize( random.randint(enemy_min_size, enemy_max_size) )
+                            enemy.setRandPos()
                         
         #If game is PAUSED
         elif paused.getStatus():
-            paused.showOverlay()
+            #re-draw everything
+            screen.blit(background, (0,0)) #clear the whole screen
+            
+            #first the sprites
+            neutralGroup.draw(screen)
+            userGroup.draw(screen)
+            enemyGroup.draw(screen)
+
+            #then the overlays 
+            paused.draw()
+            instructions.draw()
+            score.draw()
             pygame.display.flip()
             
             #Events
@@ -108,6 +186,11 @@ def main():
                 if event.type == pygame.KEYDOWN:
                     if (event.key == pygame.K_SPACE):
                         paused.toggle()
+                        keys = (False, False, False, False) #reset the movement keys
+                        screen.blit(background, (0,0)) #clear the whole screen
+                    if (event.key == pygame.K_RETURN):
+                        newGame.toggle()
+                        keys = (False, False, False, False) #reset the movement keys
                         screen.blit(background, (0,0)) #clear the whole screen
                         
         #If game is RUNNING
@@ -118,18 +201,21 @@ def main():
                     keepGoing = False
 
                 if event.type == SPAWN:
-                	#Spawn New Neutrals
-                    if (len(neutralGroup) < numNeutrals):
-                        numNewNeutrals = random.randint(0, (numNeutrals-len(neutralGroup)) )
-                        for i in range(numNewNeutrals):
-                            neutral = entities.Neutral(screen, scoreboard_height, random.randint(neutral_min_size, neutral_max_size))
-                            neutralGroup.add(neutral)
-                    #Spawn New Enemies
-                    if (len(enemyGroup) < numEnemies):
-                    	numNewEnemies = random.randint(0, (numEnemies-len(enemyGroup)) )
-                    	for i in range(numNewEnemies):
-                    		enemy = entities.Enemy(screen, scoreboard_height, random.randint(enemy_min_size, enemy_max_size))
-                    		enemyGroup.add(enemy)
+                    for neutral in neutrals:
+                        if (neutral.getStatus() == False):
+                            #2 in 3 shot to be re-used
+                            if (random.randint(1,3) > 1):
+                                neutral.toggle()
+                                neutral.resize( random.randint(neutral_min_size, neutral_max_size) )
+                                neutral.setRandPos()
+                                neutralGroup.add(neutral)
+                    for enemy in enemies:
+                        if (enemy.getStatus() == False):
+                            #2 in 3 shot to be re-used
+                            if (random.randint(1,3) > 1):
+                                enemy.toggle()
+                                enemy.setRandPos()
+                                enemyGroup.add(enemy)
                     		
                 if event.type == ENEMYGROW:
                     for enemy in enemyGroup:
@@ -170,14 +256,16 @@ def main():
             #collisions
             enemyCollide = pygame.sprite.spritecollide(user,enemyGroup, True)
             for enemy in enemyCollide:
+                enemy.toggle()
                 ruok = score.die()
                 if (ruok == -1):
                     gameOver.toggle()
                 user.play_sound()
             neutralCollide = pygame.sprite.spritecollide(user, neutralGroup, True)
             for neutral in neutralCollide:
+                neutral.toggle()
                 neutral.play_sound()
-                score.increaseScore((10/neutral.getSize())+25)
+                score.increaseScore((25/neutral.getSize())+25)
                 
             #Refresh gameArea 
             neutralGroup.clear(screen, background)
@@ -193,7 +281,7 @@ def main():
             enemyGroup.draw(screen)
             
             #update scoreboard
-            score.drawInfo()
+            score.draw()
         
             pygame.display.flip()
         	
